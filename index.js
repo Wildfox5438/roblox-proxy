@@ -14,17 +14,27 @@ app.get("/api/ownership", async (req, res) => {
     return res.status(400).json({ error: "Missing username or gamepassId" });
 
   try {
-    // Step 1: Get user ID by username
-    const userRes = await fetch(`https://api.roblox.com/users/get-by-username?username=${username}`);
+    // Step 1: Get user ID from username (new API)
+    const userRes = await fetch(`https://users.roblox.com/v1/users/search?keyword=${username}&limit=1`);
     const userData = await userRes.json();
-    if (!userData.Id) return res.json({ owned: false, error: "User not found" });
 
-    // Step 2: Check gamepass ownership
-    const ownershipRes = await fetch(`https://inventory.roblox.com/v1/users/${userData.Id}/items/GamePass/${gamepassId}`);
+    if (!userData.data || userData.data.length === 0)
+      return res.json({ owned: false, error: "User not found" });
+
+    const userId = userData.data[0].id;
+
+    // Step 2: Check gamepass ownership (new API)
+    const ownershipRes = await fetch(
+      `https://inventory.roblox.com/v1/users/${userId}/items/GamePass/${gamepassId}`
+    );
+
+    if (!ownershipRes.ok)
+      return res.status(ownershipRes.status).json({ error: "Failed to reach Roblox Inventory API" });
+
     const ownershipData = await ownershipRes.json();
-
     const owned = ownershipData.data && ownershipData.data.length > 0;
-    res.json({ owned, userId: userData.Id });
+
+    res.json({ owned, userId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to connect to Roblox API" });
